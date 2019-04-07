@@ -34,6 +34,11 @@ public class ScaleRotateView extends RelativeLayout {
    */
   private RectF mRect;
 
+  /**
+   * 临时的recF 目的是减少对象创建
+   */
+  private RectF tempRect;
+
   private Paint mPaint;
 
   private Drawable mainDrawable;
@@ -104,6 +109,7 @@ public class ScaleRotateView extends RelativeLayout {
     mRatio = mainWidth / (float) mainHeight;
     mRect = new RectF((width >> 1) - (mainWidth >> 1), (height >> 1) - (mainHeight >> 1),
         (width >> 1) + (mainWidth >> 1), (height >> 1) + (mainHeight >> 1));
+    tempRect = new RectF(mRect);
     drawableWidth = rotateDrawable.getIntrinsicWidth() / 2;
     drawableHeight = rotateDrawable.getIntrinsicHeight() / 2;
   }
@@ -247,11 +253,11 @@ public class ScaleRotateView extends RelativeLayout {
     float[] point = new float[] { eventX, eventY };
 
     final Matrix rotateMatrix = new Matrix();
+    //反向旋转回去 抵消canvas的旋转
     rotateMatrix.postTranslate(-mRect.centerX(), -mRect.centerY());
     rotateMatrix.postRotate(-mRotation);
     rotateMatrix.postTranslate(mRect.centerX(), mRect.centerY());
     rotateMatrix.mapPoints(point);
-    //mRotateMatrix.mapPoints(point);
     eventX = point[0];
     eventY = point[1];
 
@@ -313,6 +319,9 @@ public class ScaleRotateView extends RelativeLayout {
     float distance1 = getPointDistance(pt1, pt2);
     float distance2 = getPointDistance(pt1, pt3);
     float distance = distance1 - distance2;
+    if (!checkCanScale(distance)) {
+      return;
+    }
     mRect.inset(-distance, -distance / mRatio);
     invalidateMatrix();
     invalidate();
@@ -344,5 +353,17 @@ public class ScaleRotateView extends RelativeLayout {
    */
   private float getPointDistance(float[] pt1, float[] pt2) {
     return PointUtil.calculatePointDistance(pt1, pt2);
+  }
+
+  /**
+   * 设置一个缩放的最小阈值 低于阈值，不可继续缩小
+   */
+  private boolean checkCanScale(float distance) {
+    tempRect.set(mRect);
+    tempRect.inset(-distance, -distance / mRatio);
+    if (tempRect.width() < drawableHeight*3 || tempRect.height() < drawableHeight*3) {
+      return false;
+    }
+    return true;
   }
 }
