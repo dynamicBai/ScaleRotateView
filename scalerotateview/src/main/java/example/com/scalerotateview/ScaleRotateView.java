@@ -312,7 +312,7 @@ public class ScaleRotateView extends RelativeLayout {
   }
 
   private void onScale(float dx, float dy) {
-    //scale在右下角且缩放中心点不变，固算两个右下角到中心点距离比例，即为缩放比例
+    // TODO: 2019/4/8 这里的dx,dy计算需要改进
     float[] pt1 = new float[] { mRect.centerX(), mRect.centerY() };
     float[] pt2 = new float[] { mRect.right, mRect.bottom };
     float[] pt3 = new float[] { mRect.right + dx, mRect.bottom + dy };
