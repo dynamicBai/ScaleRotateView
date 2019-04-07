@@ -328,6 +328,7 @@ public class ScaleRotateView extends RelativeLayout {
   }
 
   private void onRotate(float triggerX, float triggerY) {
+    // TODO: 2019/4/8 这里的dx,dy计算需要改进
     float[] pt1 = new float[] { mRect.centerX(), mRect.centerY() };
     float[] pt2 = new float[] { mRect.right, mRect.top };
     float[] pt3 = new float[] { triggerX, triggerY };
@@ -361,7 +362,7 @@ public class ScaleRotateView extends RelativeLayout {
   private boolean checkCanScale(float distance) {
     tempRect.set(mRect);
     tempRect.inset(-distance, -distance / mRatio);
-    if (tempRect.width() < drawableHeight*3 || tempRect.height() < drawableHeight*3) {
+    if (tempRect.width() < drawableHeight * 3 || tempRect.height() < drawableHeight * 3) {
       return false;
     }
     return true;
