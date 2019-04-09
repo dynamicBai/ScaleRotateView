@@ -10,7 +10,6 @@ import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
-import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.widget.RelativeLayout;
@@ -144,10 +143,6 @@ public class ScaleRotateView extends RelativeLayout {
       rectF.inset(-drawableWidth, -drawableHeight);
       hasFocus = mRect.contains(points[0], points[1]);
     }
-    //if (!hasFocus) {
-    //  Log.d("sssss","no focus");
-    //  return false;
-    //}
     return super.dispatchTouchEvent(ev);
   }
 
@@ -224,7 +219,6 @@ public class ScaleRotateView extends RelativeLayout {
    * 后续可能会实现手势，这里取名mouseMove
    */
   private void onMouseMove(int mode, float triggerX, float triggerY, float dx, float dy) {
-    Log.d("sssss", "onMouseMove mode: " + mode);
     if (mode == HitModes.NONE) {
       return;
     }
@@ -238,7 +232,7 @@ public class ScaleRotateView extends RelativeLayout {
         || mode == HitModes.RIGHT_STRETCH
         || mode == HitModes.TOP_STRETCH
         || mode == HitModes.BOTTOM_STRETCH) {
-      // TODO: 2019/4/7 onStretch
+      onStretch(mode, dx, dy);
     }
   }
 
@@ -339,11 +333,77 @@ public class ScaleRotateView extends RelativeLayout {
     invalidate();
   }
 
+  private void onStretch(int mode, float dx, float dy) {
+    float distance = calculateStretchDistance(dx, dy, mode);
+    RectF rectF = new RectF(mRect);
+    if (mode == HitModes.LEFT_STRETCH) {
+      //映射矩形
+      rectF.left += distance;
+    } else if (mode == HitModes.RIGHT_STRETCH) {
+      rectF.right -= distance;
+    } else if (mode == HitModes.TOP_STRETCH) {
+      rectF.top += distance;
+    } else if (mode == HitModes.BOTTOM_STRETCH) {
+      rectF.bottom -= distance;
+    }
+    if (!checkCanStretch(rectF)) {
+      return;
+    }
+    invalidateAfterStretch(mode, rectF);
+    invalidate();
+  }
+
   private void invalidateMatrix() {
     mRotateMatrix.reset();
     mRotateMatrix.postTranslate(-mRect.centerX(), -mRect.centerY());
     mRotateMatrix.postRotate(mRotation);
     mRotateMatrix.postTranslate(mRect.centerX(), mRect.centerY());
+  }
+
+  /**
+   * 和invalidate不一样的是  这种情况中心点需要计算
+   */
+  private void invalidateAfterStretch(int mode, RectF newRect) {
+    //新的中心
+    float x, y;
+    //老的中心
+    float xOld = mRect.centerX();
+    float yOld = mRect.centerY();
+    //新的宽高
+    float width = newRect.width();
+    float height = newRect.height();
+    float length;
+    if (mode == HitModes.RIGHT_STRETCH) {
+      //以right实验  算出right的拉伸
+      length = (newRect.right - mRect.right) / 2;
+      x = (float) (xOld + length * Math.cos(Math.toRadians(mRotation)));
+      y = (float) (yOld + length * Math.sin(Math.toRadians(mRotation)));
+    } else if (mode == HitModes.LEFT_STRETCH) {
+      length = -(newRect.left - mRect.left) / 2;
+      x = (float) (xOld - length * Math.cos(Math.toRadians(mRotation)));
+      y = (float) (yOld - length * Math.sin(Math.toRadians(mRotation)));
+    } else if (mode == HitModes.TOP_STRETCH) {
+      length = -(newRect.top - mRect.top) / 2;
+      x = (float) (xOld + length * Math.sin(Math.toRadians(mRotation)));
+      y = (float) (yOld - length * Math.cos(Math.toRadians(mRotation)));
+    } else {
+      length = (newRect.bottom - mRect.bottom) / 2;
+      x = (float) (xOld - length * Math.sin(Math.toRadians(mRotation)));
+      y = (float) (yOld + length * Math.cos(Math.toRadians(mRotation)));
+    }
+    //新的矩形
+    float right = (2 * x + width) / 2;
+    float left = (2 * x - width) / 2;
+    float bottom = (2 * y + height) / 2;
+    float top = (2 * y - height) / 2;
+    mRect.set(left, top, right, bottom);
+    if (mRect.height() > 0) {
+      mRatio = mRect.width() / mRect.height();
+    }
+    mRotateMatrix.reset();
+    mRotateMatrix.postTranslate(-x, -y);
+    mRotateMatrix.postRotate(mRotation);
+    mRotateMatrix.postTranslate(x, y);
   }
 
   /**
@@ -366,5 +426,66 @@ public class ScaleRotateView extends RelativeLayout {
       return false;
     }
     return true;
+  }
+
+  /**
+   * 设置一个拉伸的最小阈值
+   */
+  private boolean checkCanStretch(RectF rectF) {
+    tempRect.set(rectF);
+    if (tempRect.width() < drawableHeight * 3 || tempRect.height() < drawableHeight * 3) {
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * 根据控件拉伸方向，算出实际distance(包含rotate的影响)
+   *
+   * @param dx event dx
+   * @param dy event dy
+   * @param mode 上下左右
+   */
+  private float calculateStretchDistance(float dx, float dy, int mode) {
+    //中心点
+    float pt1[] = new float[] { mRect.centerX(), mRect.centerY() };
+    //源rect上 edge上的圆点
+    float pt2[];
+
+    if (mode == HitModes.RIGHT_STRETCH) {
+      pt2 = new float[] { mRect.right, mRect.centerY() };
+    } else if (mode == HitModes.LEFT_STRETCH) {
+      pt2 = new float[] { mRect.left, mRect.centerY() };
+    } else if (mode == HitModes.TOP_STRETCH) {
+      pt2 = new float[] { mRect.centerX(), mRect.top };
+    } else {
+      pt2 = new float[] { mRect.centerX(), mRect.bottom };
+    }
+
+    float points[] = new float[] { dx, dy };
+
+    Matrix rotateMatrix = new Matrix();
+    rotateMatrix.postRotate(-mRotation);
+    rotateMatrix.mapPoints(points);
+    //映射上角度后 实际的dx,dy
+    dx = points[0];
+    dy = points[1];
+
+    //result rect上 edge上的圆点
+    float pt3[];
+    if (mode == HitModes.RIGHT_STRETCH) {
+      pt3 = new float[] { mRect.right + dx, mRect.centerY() + dy };
+    } else if (mode == HitModes.LEFT_STRETCH) {
+      pt3 = new float[] { mRect.left + dx, mRect.centerY() + dy };
+    } else if (mode == HitModes.TOP_STRETCH) {
+      pt3 = new float[] { mRect.centerX() + dx, mRect.top + dy };
+    } else {
+      pt3 = new float[] { mRect.centerX() + dx, mRect.bottom + dy };
+    }
+
+    double distance1 = PointUtil.calculatePointDistance(pt1, pt2);
+    double distance2 = PointUtil.calculatePointDistance(pt1, pt3);
+
+    return (float) (distance2 - distance1);
   }
 }
